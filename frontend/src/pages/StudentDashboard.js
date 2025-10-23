@@ -174,7 +174,7 @@ const StudentDashboard = ({ user, onLogout }) => {
           />
           <Route
             path="/tasks"
-            element=(
+            element={
               <div data-testid="tasks-section">
                 <div className="mb-6">
                   <h2 className="text-3xl font-bold text-gray-900">Assignments</h2>
