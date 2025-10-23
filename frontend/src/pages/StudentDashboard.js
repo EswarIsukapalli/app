@@ -245,7 +245,7 @@ const StudentDashboard = ({ user, onLogout }) => {
                   </div>
                 )}
               </div>
-            )
+            }
           />
         </Routes>
       </main>
