@@ -834,6 +834,10 @@ async def submit_task(
         }
         await db.submissions.insert_one(submission)
         submission.pop('_id', None)
+        
+        # Calculate points for leaderboard
+        await calculate_points_for_submission(submission['id'], task_id, user['id'])
+        
         return submission
 
 @api_router.get("/tasks/{task_id}/submissions", response_model=TaskSubmissionReport)
