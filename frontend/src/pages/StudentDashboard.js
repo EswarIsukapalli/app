@@ -55,8 +55,9 @@ const StudentDashboard = ({ user, onLogout }) => {
   };
 
   const navItems = [
-    { path: '/student', label: 'Materials', icon: BookOpen },
-    { path: '/student/tasks', label: 'Assignments', icon: ClipboardList }
+    { path: '/student', label: 'Workspaces', icon: FolderOpen },
+    { path: '/student/tasks', label: 'Tasks & Submissions', icon: FileCheck },
+    { path: '/student/materials', label: 'Materials', icon: BookOpen }
   ];
 
   return (
