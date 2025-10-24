@@ -279,6 +279,355 @@ class DigitalWorkspaceTester:
             self.log_test("Unauthorized Access Protection", False, f"Expected 403, got {status}")
             return False
 
+    # ================== WORKSPACE MANAGEMENT TESTS ==================
+    
+    def test_create_workspace(self):
+        """Test workspace creation (admin only)"""
+        workspace_data = {
+            "name": "Computer Science 101",
+            "description": "Introduction to Programming and Algorithms",
+            "subject": "Computer Science"
+        }
+        
+        success, response, status = self.make_request('POST', 'workspaces', workspace_data, token=self.admin_token, expected_status=200)
+        
+        if success and 'id' in response and 'invite_code' in response:
+            self.created_workspace_id = response['id']
+            self.workspace_invite_code = response['invite_code']
+            self.log_test("Create Workspace", True)
+            return True
+        else:
+            self.log_test("Create Workspace", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_workspaces_admin(self):
+        """Test get workspaces as admin"""
+        success, response, status = self.make_request('GET', 'workspaces', token=self.admin_token, expected_status=200)
+        
+        if success and isinstance(response, list) and len(response) > 0:
+            # Check if our created workspace is in the list
+            workspace_found = any(w['id'] == self.created_workspace_id for w in response)
+            if workspace_found:
+                self.log_test("Get Workspaces (Admin)", True)
+                return True
+            else:
+                self.log_test("Get Workspaces (Admin)", False, "Created workspace not found in list")
+                return False
+        else:
+            self.log_test("Get Workspaces (Admin)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_join_workspace_student(self):
+        """Test student joining workspace with invite code"""
+        if not self.workspace_invite_code:
+            self.log_test("Join Workspace (Student)", False, "No invite code available")
+            return False
+            
+        join_data = {
+            "invite_code": self.workspace_invite_code
+        }
+        
+        success, response, status = self.make_request('POST', 'workspaces/join', join_data, token=self.student_token, expected_status=200)
+        
+        if success and 'message' in response:
+            self.log_test("Join Workspace (Student)", True)
+            return True
+        else:
+            self.log_test("Join Workspace (Student)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_workspaces_student(self):
+        """Test get workspaces as student (should see joined workspaces)"""
+        success, response, status = self.make_request('GET', 'workspaces', token=self.student_token, expected_status=200)
+        
+        if success and isinstance(response, list):
+            # Student should see the workspace they joined
+            workspace_found = any(w['id'] == self.created_workspace_id for w in response)
+            if workspace_found:
+                self.log_test("Get Workspaces (Student)", True)
+                return True
+            else:
+                self.log_test("Get Workspaces (Student)", False, "Joined workspace not found in student's list")
+                return False
+        else:
+            self.log_test("Get Workspaces (Student)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_workspace_members(self):
+        """Test get workspace members (admin only)"""
+        if not self.created_workspace_id:
+            self.log_test("Get Workspace Members", False, "No workspace ID available")
+            return False
+            
+        success, response, status = self.make_request(
+            'GET', f'workspaces/{self.created_workspace_id}/members', 
+            token=self.admin_token, expected_status=200
+        )
+        
+        if success and isinstance(response, list):
+            # Should have at least one member (the student who joined)
+            student_found = any(m['student_id'] == self.student_user['id'] for m in response)
+            if student_found:
+                self.log_test("Get Workspace Members", True)
+                return True
+            else:
+                self.log_test("Get Workspace Members", False, "Student not found in members list")
+                return False
+        else:
+            self.log_test("Get Workspace Members", False, f"Status: {status}, Response: {response}")
+            return False
+
+    # ================== ENHANCED TASK SYSTEM TESTS ==================
+    
+    def test_create_workspace_task(self):
+        """Test creating task in workspace"""
+        if not self.created_workspace_id:
+            self.log_test("Create Workspace Task", False, "No workspace ID available")
+            return False
+            
+        deadline = (datetime.now() + timedelta(days=7)).isoformat()
+        task_data = {
+            "workspace_id": self.created_workspace_id,
+            "title": "Programming Assignment 1",
+            "description": "Create a simple calculator program using Python. Submit your code file and a screenshot of the running program.",
+            "deadline": deadline,
+            "submission_type": "file"
+        }
+        
+        success, response, status = self.make_request(
+            'POST', f'workspaces/{self.created_workspace_id}/tasks', 
+            task_data, token=self.admin_token, expected_status=200
+        )
+        
+        if success and 'id' in response and 'submission_type' in response:
+            self.created_task_id = response['id']
+            self.log_test("Create Workspace Task", True)
+            return True
+        else:
+            self.log_test("Create Workspace Task", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_workspace_tasks_admin(self):
+        """Test get workspace tasks as admin"""
+        if not self.created_workspace_id:
+            self.log_test("Get Workspace Tasks (Admin)", False, "No workspace ID available")
+            return False
+            
+        success, response, status = self.make_request(
+            'GET', f'workspaces/{self.created_workspace_id}/tasks', 
+            token=self.admin_token, expected_status=200
+        )
+        
+        if success and isinstance(response, list) and len(response) > 0:
+            task_found = any(t['id'] == self.created_task_id for t in response)
+            if task_found:
+                self.log_test("Get Workspace Tasks (Admin)", True)
+                return True
+            else:
+                self.log_test("Get Workspace Tasks (Admin)", False, "Created task not found")
+                return False
+        else:
+            self.log_test("Get Workspace Tasks (Admin)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_workspace_tasks_student(self):
+        """Test get workspace tasks as student (should include submission status)"""
+        if not self.created_workspace_id:
+            self.log_test("Get Workspace Tasks (Student)", False, "No workspace ID available")
+            return False
+            
+        success, response, status = self.make_request(
+            'GET', f'workspaces/{self.created_workspace_id}/tasks', 
+            token=self.student_token, expected_status=200
+        )
+        
+        if success and isinstance(response, list) and len(response) > 0:
+            task_found = False
+            for task in response:
+                if task['id'] == self.created_task_id:
+                    task_found = True
+                    # Should have submission_status field for students
+                    if 'submission_status' in task:
+                        self.log_test("Get Workspace Tasks (Student)", True)
+                        return True
+                    else:
+                        self.log_test("Get Workspace Tasks (Student)", False, "Missing submission_status field")
+                        return False
+            
+            if not task_found:
+                self.log_test("Get Workspace Tasks (Student)", False, "Created task not found")
+                return False
+        else:
+            self.log_test("Get Workspace Tasks (Student)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    # ================== SUBMISSION SYSTEM TESTS ==================
+    
+    def test_submit_task_with_file(self):
+        """Test submitting task with file upload"""
+        if not self.created_task_id:
+            self.log_test("Submit Task with File", False, "No task ID available")
+            return False
+            
+        # Create a test file (small image simulation)
+        test_content = b"Test file content for submission - simulating a Python script"
+        test_file = io.BytesIO(test_content)
+        
+        files = {'file': ('calculator.py', test_file, 'text/plain')}
+        data = {}  # No additional data needed for file submission
+        
+        success, response, status = self.make_request(
+            'POST', f'tasks/{self.created_task_id}/submit', 
+            data=data, files=files, token=self.student_token, expected_status=200
+        )
+        
+        if success and 'id' in response and response.get('submission_type') == 'file':
+            self.submission_id = response['id']
+            self.log_test("Submit Task with File", True)
+            return True
+        else:
+            self.log_test("Submit Task with File", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_submit_task_with_link(self):
+        """Test submitting task with link (resubmission)"""
+        if not self.created_task_id:
+            self.log_test("Submit Task with Link", False, "No task ID available")
+            return False
+            
+        # Test resubmission with link
+        data = {'link': 'https://github.com/student/calculator-project'}
+        
+        success, response, status = self.make_request(
+            'POST', f'tasks/{self.created_task_id}/submit', 
+            data=data, token=self.student_token, expected_status=200
+        )
+        
+        if success and 'id' in response and response.get('submission_type') == 'link':
+            self.log_test("Submit Task with Link", True)
+            return True
+        else:
+            self.log_test("Submit Task with Link", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_task_submissions_report(self):
+        """Test get task submissions report (admin only)"""
+        if not self.created_task_id:
+            self.log_test("Get Task Submissions Report", False, "No task ID available")
+            return False
+            
+        success, response, status = self.make_request(
+            'GET', f'tasks/{self.created_task_id}/submissions', 
+            token=self.admin_token, expected_status=200
+        )
+        
+        if success and 'task' in response and 'submissions' in response:
+            # Check if report has the expected fields
+            required_fields = ['total_students', 'submitted_count', 'approved_count', 'rejected_count', 'pending_count']
+            if all(field in response for field in required_fields):
+                self.log_test("Get Task Submissions Report", True)
+                return True
+            else:
+                self.log_test("Get Task Submissions Report", False, "Missing required report fields")
+                return False
+        else:
+            self.log_test("Get Task Submissions Report", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_review_submission_approve(self):
+        """Test approving a submission (admin only)"""
+        if not self.submission_id:
+            self.log_test("Review Submission (Approve)", False, "No submission ID available")
+            return False
+            
+        review_data = {
+            "status": "approved",
+            "comment": "Excellent work! Your calculator implementation is well-structured and handles edge cases properly."
+        }
+        
+        success, response, status = self.make_request(
+            'POST', f'submissions/{self.submission_id}/review', 
+            review_data, token=self.admin_token, expected_status=200
+        )
+        
+        if success and 'message' in response:
+            self.log_test("Review Submission (Approve)", True)
+            return True
+        else:
+            self.log_test("Review Submission (Approve)", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_get_my_submissions(self):
+        """Test get my submissions (student only)"""
+        success, response, status = self.make_request(
+            'GET', 'my-submissions', 
+            token=self.student_token, expected_status=200
+        )
+        
+        if success and isinstance(response, list):
+            # Should find our submission with approved status
+            submission_found = False
+            for submission in response:
+                if submission['id'] == self.submission_id and submission['status'] == 'approved':
+                    submission_found = True
+                    break
+            
+            if submission_found:
+                self.log_test("Get My Submissions", True)
+                return True
+            else:
+                self.log_test("Get My Submissions", False, "Approved submission not found in student's submissions")
+                return False
+        else:
+            self.log_test("Get My Submissions", False, f"Status: {status}, Response: {response}")
+            return False
+
+    def test_file_size_limit(self):
+        """Test file size limit (10MB)"""
+        if not self.created_task_id:
+            self.log_test("File Size Limit Test", False, "No task ID available")
+            return False
+            
+        # Create a file larger than 10MB (simulate)
+        # We'll test with a smaller file but check the error handling
+        large_content = b"x" * (11 * 1024 * 1024)  # 11MB
+        test_file = io.BytesIO(large_content)
+        
+        files = {'file': ('large_file.txt', test_file, 'text/plain')}
+        data = {}
+        
+        success, response, status = self.make_request(
+            'POST', f'tasks/{self.created_task_id}/submit', 
+            data=data, files=files, token=self.student_token, expected_status=400
+        )
+        
+        # Should fail with 400 status for file too large
+        if status == 400 and 'too large' in str(response).lower():
+            self.log_test("File Size Limit Test", True)
+            return True
+        else:
+            # If it doesn't fail as expected, that's also a failure
+            self.log_test("File Size Limit Test", False, f"Expected 400 for large file, got {status}")
+            return False
+
+    def test_permission_restrictions(self):
+        """Test permission restrictions"""
+        # Test student trying to create workspace
+        workspace_data = {
+            "name": "Unauthorized Workspace",
+            "description": "This should fail",
+            "subject": "Test"
+        }
+        
+        success, response, status = self.make_request('POST', 'workspaces', workspace_data, token=self.student_token, expected_status=403)
+        
+        if status == 403:
+            self.log_test("Permission Restrictions (Student Create Workspace)", True)
+            return True
+        else:
+            self.log_test("Permission Restrictions (Student Create Workspace)", False, f"Expected 403, got {status}")
+            return False
+
     def cleanup(self):
         """Clean up created resources"""
         if self.created_material_id and self.admin_token:
