@@ -85,6 +85,7 @@ const AdminDashboard = ({ user, onLogout }) => {
         <Routes>
           <Route path="/" element={<OverviewTab />} />
           <Route path="/workspaces" element={<WorkspacesTab />} />
+          <Route path="/workspace-tasks" element={<WorkspaceTasksTab />} />
           <Route path="/materials" element={<MaterialsTab />} />
           <Route path="/tasks" element={<TasksTab />} />
         </Routes>
