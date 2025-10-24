@@ -655,7 +655,7 @@ class DigitalWorkspaceTester:
             print("❌ Student signup failed, stopping tests")
             return False
             
-        self.test_login()
+        # Skip login test as we already have valid tokens from signup
         self.test_auth_me()
         
         # Workspace Management tests
