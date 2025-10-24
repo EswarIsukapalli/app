@@ -4,11 +4,13 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { BookOpen, ClipboardList, LogOut, Download, CheckCircle2, Circle, Calendar, FolderOpen, FileCheck } from 'lucide-react';
+import { BookOpen, ClipboardList, LogOut, Download, CheckCircle2, Circle, Calendar, FolderOpen, FileCheck, Bell, Trophy } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import WorkspaceJoinTab from '@/components/student/WorkspaceJoinTab';
 import WorkspaceTasksTab from '@/components/student/WorkspaceTasksTab';
+import DepartmentFeedTab from '@/components/student/DepartmentFeedTab';
+import StudentLeaderboardTab from '@/components/student/StudentLeaderboardTab';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
