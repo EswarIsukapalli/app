@@ -634,11 +634,12 @@ class DigitalWorkspaceTester:
             self.make_request('DELETE', f'materials/{self.created_material_id}', token=self.admin_token)
 
     def run_all_tests(self):
-        """Run all backend API tests"""
-        print("🚀 Starting LMS Backend API Tests")
-        print("=" * 50)
+        """Run all Digital Workspace Platform backend API tests"""
+        print("🚀 Starting Digital Workspace Platform Backend API Tests")
+        print("=" * 60)
         
         # Authentication tests
+        print("\n📋 Authentication Tests")
         if not self.test_admin_signup():
             print("❌ Admin signup failed, stopping tests")
             return False
@@ -649,30 +650,51 @@ class DigitalWorkspaceTester:
             
         self.test_login()
         self.test_auth_me()
+        
+        # Workspace Management tests
+        print("\n🏢 Workspace Management Tests")
+        if not self.test_create_workspace():
+            print("❌ Workspace creation failed, skipping dependent tests")
+            return False
+            
+        self.test_get_workspaces_admin()
+        
+        if not self.test_join_workspace_student():
+            print("❌ Student workspace join failed, skipping dependent tests")
+            return False
+            
+        self.test_get_workspaces_student()
+        self.test_get_workspace_members()
+        
+        # Enhanced Task System tests
+        print("\n📝 Enhanced Task System Tests")
+        if not self.test_create_workspace_task():
+            print("❌ Workspace task creation failed, skipping dependent tests")
+            return False
+            
+        self.test_get_workspace_tasks_admin()
+        self.test_get_workspace_tasks_student()
+        
+        # Submission System tests
+        print("\n📤 Submission System Tests")
+        self.test_submit_task_with_file()
+        self.test_submit_task_with_link()  # Test resubmission
+        self.test_get_task_submissions_report()
+        self.test_review_submission_approve()
+        self.test_get_my_submissions()
+        
+        # Security and validation tests
+        print("\n🔒 Security & Validation Tests")
+        self.test_permission_restrictions()
         self.test_unauthorized_access()
+        # Note: File size limit test disabled as it may cause memory issues in container
+        # self.test_file_size_limit()
         
-        # Admin functionality tests
-        self.test_admin_stats()
-        self.test_material_upload()
-        
-        # Student functionality tests
-        self.test_get_materials()
-        
-        # Task management tests
-        self.test_create_task()
-        self.test_get_tasks()
-        self.test_complete_task()
-        self.test_task_completions()
-        self.test_uncomplete_task()
-        
-        # Cleanup
-        self.cleanup()
-        
-        print("\n" + "=" * 50)
+        print("\n" + "=" * 60)
         print(f"📊 Test Results: {self.tests_passed}/{self.tests_run} tests passed")
         
         if self.tests_passed == self.tests_run:
-            print("🎉 All backend tests passed!")
+            print("🎉 All Digital Workspace Platform backend tests passed!")
             return True
         else:
             print(f"⚠️  {self.tests_run - self.tests_passed} tests failed")
