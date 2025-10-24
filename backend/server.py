@@ -493,6 +493,331 @@ async def get_admin_stats(user: dict = Depends(get_admin_user)):
         'total_tasks': total_tasks
     }
 
+# ================== NEW WORKSPACE ENDPOINTS ==================
+
+@api_router.post("/workspaces", response_model=Workspace)
+async def create_workspace(workspace_data: WorkspaceCreate, user: dict = Depends(get_admin_user)):
+    """Create a new workspace (admin only)"""
+    workspace = {
+        'id': str(uuid.uuid4()),
+        'name': workspace_data.name,
+        'description': workspace_data.description,
+        'subject': workspace_data.subject,
+        'invite_code': generate_invite_code(),
+        'created_by': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.workspaces.insert_one(workspace)
+    workspace.pop('_id', None)
+    workspace['member_count'] = 0
+    return workspace
+
+@api_router.get("/workspaces", response_model=List[Workspace])
+async def get_workspaces(user: dict = Depends(get_current_user)):
+    """Get workspaces - admin sees all they created, students see joined ones"""
+    if user['role'] == 'admin':
+        workspaces = await db.workspaces.find({'created_by': user['id']}, {'_id': 0}).to_list(1000)
+        # Add member count
+        for workspace in workspaces:
+            member_count = await db.workspace_members.count_documents({'workspace_id': workspace['id']})
+            workspace['member_count'] = member_count
+    else:
+        # Get workspaces student has joined
+        memberships = await db.workspace_members.find({'student_id': user['id']}, {'_id': 0}).to_list(1000)
+        workspace_ids = [m['workspace_id'] for m in memberships]
+        workspaces = await db.workspaces.find({'id': {'$in': workspace_ids}}, {'_id': 0}).to_list(1000)
+        for workspace in workspaces:
+            member_count = await db.workspace_members.count_documents({'workspace_id': workspace['id']})
+            workspace['member_count'] = member_count
+    
+    return workspaces
+
+@api_router.get("/workspaces/{workspace_id}", response_model=Workspace)
+async def get_workspace(workspace_id: str, user: dict = Depends(get_current_user)):
+    """Get a specific workspace"""
+    workspace = await db.workspaces.find_one({'id': workspace_id}, {'_id': 0})
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    
+    # Check access
+    if user['role'] == 'student':
+        member = await db.workspace_members.find_one({'workspace_id': workspace_id, 'student_id': user['id']})
+        if not member:
+            raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    
+    member_count = await db.workspace_members.count_documents({'workspace_id': workspace_id})
+    workspace['member_count'] = member_count
+    return workspace
+
+@api_router.post("/workspaces/join")
+async def join_workspace(join_data: WorkspaceJoin, user: dict = Depends(get_current_user)):
+    """Join a workspace using invite code (students only)"""
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail="Only students can join workspaces")
+    
+    workspace = await db.workspaces.find_one({'invite_code': join_data.invite_code})
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Invalid invite code")
+    
+    # Check if already a member
+    existing = await db.workspace_members.find_one({
+        'workspace_id': workspace['id'],
+        'student_id': user['id']
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Already a member of this workspace")
+    
+    # Add member
+    member = {
+        'workspace_id': workspace['id'],
+        'student_id': user['id'],
+        'student_name': user['name'],
+        'joined_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.workspace_members.insert_one(member)
+    
+    return {'message': 'Successfully joined workspace', 'workspace_name': workspace['name']}
+
+@api_router.get("/workspaces/{workspace_id}/members", response_model=List[WorkspaceMember])
+async def get_workspace_members(workspace_id: str, user: dict = Depends(get_admin_user)):
+    """Get all members of a workspace (admin only)"""
+    workspace = await db.workspaces.find_one({'id': workspace_id})
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    
+    if workspace['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized to view members")
+    
+    members = await db.workspace_members.find({'workspace_id': workspace_id}, {'_id': 0}).to_list(1000)
+    return members
+
+# ================== ENHANCED TASK ENDPOINTS ==================
+
+@api_router.post("/workspaces/{workspace_id}/tasks", response_model=TaskWorkspace)
+async def create_workspace_task(
+    workspace_id: str, 
+    task_data: TaskCreateWorkspace, 
+    user: dict = Depends(get_admin_user)
+):
+    """Create a task in a workspace"""
+    workspace = await db.workspaces.find_one({'id': workspace_id})
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    
+    if workspace['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized to create tasks in this workspace")
+    
+    task = {
+        'id': str(uuid.uuid4()),
+        'workspace_id': workspace_id,
+        'title': task_data.title,
+        'description': task_data.description,
+        'deadline': task_data.deadline,
+        'submission_type': task_data.submission_type,
+        'created_by': user['id'],
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.workspace_tasks.insert_one(task)
+    task.pop('_id', None)
+    return task
+
+@api_router.get("/workspaces/{workspace_id}/tasks", response_model=List[TaskWithSubmission])
+async def get_workspace_tasks(workspace_id: str, user: dict = Depends(get_current_user)):
+    """Get all tasks in a workspace"""
+    # Check workspace access
+    if user['role'] == 'student':
+        member = await db.workspace_members.find_one({'workspace_id': workspace_id, 'student_id': user['id']})
+        if not member:
+            raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    else:
+        workspace = await db.workspaces.find_one({'id': workspace_id, 'created_by': user['id']})
+        if not workspace:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
+    tasks = await db.workspace_tasks.find({'workspace_id': workspace_id}, {'_id': 0}).to_list(1000)
+    
+    # For students, add submission status
+    if user['role'] == 'student':
+        for task in tasks:
+            submission = await db.submissions.find_one({
+                'task_id': task['id'],
+                'student_id': user['id']
+            })
+            if submission:
+                task['submission_status'] = submission['status']
+                task['submission_id'] = submission['id']
+                task['submitted_at'] = submission['submitted_at']
+            else:
+                task['submission_status'] = 'not_submitted'
+    
+    return tasks
+
+# ================== SUBMISSION ENDPOINTS ==================
+
+@api_router.post("/tasks/{task_id}/submit", response_model=Submission)
+async def submit_task(
+    task_id: str,
+    file: Optional[UploadFile] = File(None),
+    link: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user)
+):
+    """Submit proof for a task"""
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail="Only students can submit tasks")
+    
+    task = await db.workspace_tasks.find_one({'id': task_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check workspace membership
+    member = await db.workspace_members.find_one({
+        'workspace_id': task['workspace_id'],
+        'student_id': user['id']
+    })
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this workspace")
+    
+    # Check if already submitted
+    existing = await db.submissions.find_one({
+        'task_id': task_id,
+        'student_id': user['id']
+    })
+    
+    file_path = None
+    submission_type = None
+    
+    # Handle file upload
+    if file:
+        # Validate file size (10MB limit)
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        if file_size > 10 * 1024 * 1024:  # 10MB
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
+        
+        # Save file
+        file_id = str(uuid.uuid4())
+        file_extension = Path(file.filename).suffix
+        filename = f"{file_id}{file_extension}"
+        file_path_obj = UPLOADS_DIR / filename
+        
+        with open(file_path_obj, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        file_path = f"/uploads/{filename}"
+        submission_type = 'file'
+    elif link:
+        submission_type = 'link'
+    else:
+        raise HTTPException(status_code=400, detail="Either file or link must be provided")
+    
+    if existing:
+        # Update existing submission
+        update_data = {
+            'submission_type': submission_type,
+            'file_path': file_path,
+            'link': link,
+            'status': 'pending',
+            'submitted_at': datetime.now(timezone.utc).isoformat(),
+            'reviewed_at': None,
+            'reviewed_by': None,
+            'review_comment': None
+        }
+        await db.submissions.update_one({'id': existing['id']}, {'$set': update_data})
+        existing.update(update_data)
+        return existing
+    else:
+        # Create new submission
+        submission = {
+            'id': str(uuid.uuid4()),
+            'task_id': task_id,
+            'workspace_id': task['workspace_id'],
+            'student_id': user['id'],
+            'student_name': user['name'],
+            'submission_type': submission_type,
+            'file_path': file_path,
+            'link': link,
+            'status': 'pending',
+            'submitted_at': datetime.now(timezone.utc).isoformat(),
+            'reviewed_at': None,
+            'reviewed_by': None,
+            'review_comment': None
+        }
+        await db.submissions.insert_one(submission)
+        submission.pop('_id', None)
+        return submission
+
+@api_router.get("/tasks/{task_id}/submissions", response_model=TaskSubmissionReport)
+async def get_task_submissions(task_id: str, user: dict = Depends(get_admin_user)):
+    """Get all submissions for a task (admin only)"""
+    task = await db.workspace_tasks.find_one({'id': task_id}, {'_id': 0})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check authorization
+    workspace = await db.workspaces.find_one({'id': task['workspace_id']})
+    if workspace['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    submissions = await db.submissions.find({'task_id': task_id}, {'_id': 0}).to_list(1000)
+    total_students = await db.workspace_members.count_documents({'workspace_id': task['workspace_id']})
+    
+    approved_count = sum(1 for s in submissions if s['status'] == 'approved')
+    rejected_count = sum(1 for s in submissions if s['status'] == 'rejected')
+    pending_count = sum(1 for s in submissions if s['status'] == 'pending')
+    
+    return {
+        'task': task,
+        'submissions': submissions,
+        'total_students': total_students,
+        'submitted_count': len(submissions),
+        'approved_count': approved_count,
+        'rejected_count': rejected_count,
+        'pending_count': pending_count
+    }
+
+@api_router.post("/submissions/{submission_id}/review")
+async def review_submission(
+    submission_id: str,
+    review_data: SubmissionReview,
+    user: dict = Depends(get_admin_user)
+):
+    """Approve or reject a submission (admin only)"""
+    submission = await db.submissions.find_one({'id': submission_id})
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    
+    # Check authorization
+    task = await db.workspace_tasks.find_one({'id': submission['task_id']})
+    workspace = await db.workspaces.find_one({'id': task['workspace_id']})
+    if workspace['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if review_data.status not in ['approved', 'rejected']:
+        raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
+    
+    update_data = {
+        'status': review_data.status,
+        'reviewed_at': datetime.now(timezone.utc).isoformat(),
+        'reviewed_by': user['id'],
+        'review_comment': review_data.comment
+    }
+    
+    await db.submissions.update_one({'id': submission_id}, {'$set': update_data})
+    
+    return {'message': f'Submission {review_data.status}', 'submission_id': submission_id}
+
+@api_router.get("/my-submissions", response_model=List[Submission])
+async def get_my_submissions(user: dict = Depends(get_current_user)):
+    """Get all submissions by the current student"""
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail="Only students can view their submissions")
+    
+    submissions = await db.submissions.find({'student_id': user['id']}, {'_id': 0}).to_list(1000)
+    return submissions
+
 # Include router
 app.include_router(api_router)
 
