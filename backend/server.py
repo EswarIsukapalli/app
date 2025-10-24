@@ -245,6 +245,11 @@ async def get_admin_user(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
+async def get_department_admin_user(user: dict = Depends(get_current_user)):
+    if user['role'] != 'department_admin':
+        raise HTTPException(status_code=403, detail="Department admin access required")
+    return user
+
 async def send_email(to_email: str, subject: str, body: str):
     """Send email notification"""
     if not SMTP_USER or not SMTP_PASSWORD:
