@@ -318,7 +318,7 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Create token
-    token = create_token(user['id'], user['email'], user['role'])
+    token = create_token(user['id'], user['email'], user['role'], user.get('department'))
     
     # Return user without password
     user.pop('password')
