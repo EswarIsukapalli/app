@@ -905,6 +905,453 @@ async def get_my_submissions(user: dict = Depends(get_current_user)):
     submissions = await db.submissions.find({'student_id': user['id']}, {'_id': 0}).to_list(1000)
     return submissions
 
+
+# ========================================
+# DEPARTMENT UPDATES APIs
+# ========================================
+
+@api_router.post("/department-updates", response_model=DepartmentUpdate)
+async def create_department_update(
+    update_data: DepartmentUpdateCreate,
+    user: dict = Depends(get_department_admin_user)
+):
+    """Create a department update (Department Admin only)"""
+    if not user.get('department'):
+        raise HTTPException(status_code=400, detail="Department admin must have a department assigned")
+    
+    update_id = str(uuid.uuid4())
+    update = {
+        'id': update_id,
+        'title': update_data.title,
+        'description': update_data.description,
+        'category': update_data.category,
+        'department': user['department'],
+        'attachments': update_data.attachments or [],
+        'visible_to_sections': update_data.visible_to_sections or [],
+        'event_date': update_data.event_date,
+        'created_by': user['id'],
+        'created_by_name': user['name'],
+        'created_at': datetime.now(timezone.utc).isoformat(),
+        'interested_users': [],
+        'attending_users': []
+    }
+    
+    await db.department_updates.insert_one(update)
+    update.pop('_id', None)
+    return update
+
+@api_router.get("/department-updates", response_model=List[DepartmentUpdateWithInterest])
+async def get_department_updates(
+    category: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get department updates filtered by user's department and section"""
+    if not user.get('department'):
+        return []
+    
+    # Build query
+    query = {'department': user['department']}
+    
+    if category:
+        query['category'] = category
+    
+    updates = await db.department_updates.find(query, {'_id': 0}).sort('created_at', -1).to_list(1000)
+    
+    # Filter by section if user has a section
+    if user.get('section'):
+        filtered_updates = []
+        for update in updates:
+            # Show if no sections specified OR user's section is in the list
+            if not update.get('visible_to_sections') or user['section'] in update.get('visible_to_sections', []):
+                filtered_updates.append(update)
+        updates = filtered_updates
+    
+    # Add interest/attendance info for current user
+    result = []
+    for update in updates:
+        update_with_interest = DepartmentUpdateWithInterest(
+            **update,
+            is_interested=user['id'] in update.get('interested_users', []),
+            is_attending=user['id'] in update.get('attending_users', []),
+            interested_count=len(update.get('interested_users', [])),
+            attending_count=len(update.get('attending_users', []))
+        )
+        result.append(update_with_interest)
+    
+    return result
+
+@api_router.post("/department-updates/{update_id}/interest")
+async def mark_interest(
+    update_id: str,
+    action: str,  # 'interested' or 'attending'
+    user: dict = Depends(get_current_user)
+):
+    """Mark user as interested or attending an event"""
+    if action not in ['interested', 'attending']:
+        raise HTTPException(status_code=400, detail="Action must be 'interested' or 'attending'")
+    
+    update = await db.department_updates.find_one({'id': update_id})
+    if not update:
+        raise HTTPException(status_code=404, detail="Update not found")
+    
+    field = 'interested_users' if action == 'interested' else 'attending_users'
+    
+    # Toggle: if already marked, remove; otherwise add
+    if user['id'] in update.get(field, []):
+        await db.department_updates.update_one(
+            {'id': update_id},
+            {'$pull': {field: user['id']}}
+        )
+        return {'message': f'Unmarked as {action}', 'marked': False}
+    else:
+        await db.department_updates.update_one(
+            {'id': update_id},
+            {'$addToSet': {field: user['id']}}
+        )
+        return {'message': f'Marked as {action}', 'marked': True}
+
+@api_router.get("/department-updates/calendar")
+async def get_upcoming_events(user: dict = Depends(get_current_user)):
+    """Get upcoming events for calendar view"""
+    if not user.get('department'):
+        return []
+    
+    query = {
+        'department': user['department'],
+        'event_date': {'$ne': None}
+    }
+    
+    events = await db.department_updates.find(query, {'_id': 0}).sort('event_date', 1).to_list(1000)
+    
+    # Filter by section
+    if user.get('section'):
+        filtered_events = []
+        for event in events:
+            if not event.get('visible_to_sections') or user['section'] in event.get('visible_to_sections', []):
+                filtered_events.append(event)
+        events = filtered_events
+    
+    return events
+
+@api_router.delete("/department-updates/{update_id}")
+async def delete_department_update(
+    update_id: str,
+    user: dict = Depends(get_department_admin_user)
+):
+    """Delete a department update (Department Admin only)"""
+    update = await db.department_updates.find_one({'id': update_id})
+    if not update:
+        raise HTTPException(status_code=404, detail="Update not found")
+    
+    # Check if the user created this update or is from the same department
+    if update['department'] != user.get('department'):
+        raise HTTPException(status_code=403, detail="Can only delete updates from your department")
+    
+    await db.department_updates.delete_one({'id': update_id})
+    return {'message': 'Update deleted successfully'}
+
+# ========================================
+# LEADERBOARD APIs
+# ========================================
+
+def get_current_semester() -> str:
+    """Get current semester string (e.g., '2025-1' for Jan-May)"""
+    now = datetime.now(timezone.utc)
+    # Semester 1: Jan-May (months 1-5)
+    # Semester 2: Aug-Dec (months 8-12)
+    if now.month >= 1 and now.month <= 5:
+        return f"{now.year}-1"
+    elif now.month >= 8 and now.month <= 12:
+        return f"{now.year}-2"
+    else:
+        # June-July transition period, use previous semester
+        return f"{now.year}-1"
+
+async def calculate_points_for_submission(submission_id: str, task_id: str, student_id: str):
+    """Calculate and update points when a task is submitted"""
+    submission = await db.submissions.find_one({'id': submission_id})
+    task = await db.workspace_tasks.find_one({'id': task_id})
+    user = await db.users.find_one({'id': student_id})
+    
+    if not submission or not task or not user:
+        return
+    
+    # Determine if submission is on time or late
+    deadline = datetime.fromisoformat(task['deadline'].replace('Z', '+00:00'))
+    submitted_at = datetime.fromisoformat(submission['submitted_at'].replace('Z', '+00:00'))
+    
+    if submitted_at <= deadline:
+        points = POINTS_CONFIG['task_on_time']
+        activity_type = 'task_on_time'
+        description = f"Completed task '{task['title']}' on time"
+    else:
+        points = POINTS_CONFIG['task_late']
+        activity_type = 'task_late'
+        description = f"Completed task '{task['title']}' late"
+    
+    # Create activity record
+    activity = {
+        'activity_type': activity_type,
+        'points': points,
+        'description': description,
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'related_id': task_id
+    }
+    
+    # Update or create leaderboard entry
+    semester = get_current_semester()
+    entry = await db.leaderboard.find_one({
+        'user_id': student_id,
+        'semester': semester
+    })
+    
+    if entry:
+        # Update existing entry
+        new_total = entry['total_points'] + points
+        new_tasks_completed = entry['tasks_completed'] + 1
+        
+        if activity_type == 'task_on_time':
+            new_tasks_on_time = entry.get('tasks_on_time', 0) + 1
+            new_tasks_late = entry.get('tasks_late', 0)
+        else:
+            new_tasks_on_time = entry.get('tasks_on_time', 0)
+            new_tasks_late = entry.get('tasks_late', 0) + 1
+        
+        # Calculate completion rate
+        total_tasks = new_tasks_completed + entry.get('tasks_missed', 0)
+        completion_rate = (new_tasks_completed / total_tasks * 100) if total_tasks > 0 else 0
+        
+        await db.leaderboard.update_one(
+            {'user_id': student_id, 'semester': semester},
+            {
+                '$set': {
+                    'total_points': new_total,
+                    'tasks_completed': new_tasks_completed,
+                    'tasks_on_time': new_tasks_on_time,
+                    'tasks_late': new_tasks_late,
+                    'task_completion_rate': round(completion_rate, 2),
+                    'last_updated': datetime.now(timezone.utc).isoformat()
+                },
+                '$push': {'point_history': activity}
+            }
+        )
+    else:
+        # Create new entry
+        completion_rate = 100.0 if activity_type == 'task_on_time' else 0.0
+        
+        new_entry = {
+            'id': str(uuid.uuid4()),
+            'user_id': student_id,
+            'user_name': user['name'],
+            'department': user.get('department', ''),
+            'section': user.get('section'),
+            'semester': semester,
+            'total_points': points,
+            'tasks_completed': 1,
+            'tasks_on_time': 1 if activity_type == 'task_on_time' else 0,
+            'tasks_late': 1 if activity_type == 'task_late' else 0,
+            'tasks_missed': 0,
+            'events_attended': 0,
+            'task_completion_rate': completion_rate,
+            'rank': 0,
+            'rank_change': 0,
+            'last_updated': datetime.now(timezone.utc).isoformat(),
+            'point_history': [activity]
+        }
+        
+        await db.leaderboard.insert_one(new_entry)
+    
+    # Recalculate ranks for the department
+    await recalculate_department_ranks(user.get('department', ''), semester)
+
+async def recalculate_department_ranks(department: str, semester: str):
+    """Recalculate ranks for all users in a department"""
+    if not department:
+        return
+    
+    # Get all entries for this department and semester, sorted by points
+    entries = await db.leaderboard.find(
+        {'department': department, 'semester': semester},
+        {'_id': 0}
+    ).sort('total_points', -1).to_list(1000)
+    
+    # Update ranks
+    for idx, entry in enumerate(entries, start=1):
+        old_rank = entry.get('rank', 0)
+        new_rank = idx
+        rank_change = old_rank - new_rank if old_rank > 0 else 0
+        
+        await db.leaderboard.update_one(
+            {'user_id': entry['user_id'], 'semester': semester},
+            {
+                '$set': {
+                    'rank': new_rank,
+                    'rank_change': rank_change
+                }
+            }
+        )
+
+@api_router.post("/leaderboard/mark-attendance/{update_id}")
+async def mark_event_attendance(
+    update_id: str,
+    student_ids: List[str],
+    user: dict = Depends(get_department_admin_user)
+):
+    """Mark attendance for students in an event (Department Admin only)"""
+    update = await db.department_updates.find_one({'id': update_id})
+    if not update:
+        raise HTTPException(status_code=404, detail="Update not found")
+    
+    semester = get_current_semester()
+    
+    for student_id in student_ids:
+        student = await db.users.find_one({'id': student_id})
+        if not student:
+            continue
+        
+        # Add points for event participation
+        activity = {
+            'activity_type': 'event_participation',
+            'points': POINTS_CONFIG['event_participation'],
+            'description': f"Attended event '{update['title']}'",
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'related_id': update_id
+        }
+        
+        # Update leaderboard
+        entry = await db.leaderboard.find_one({'user_id': student_id, 'semester': semester})
+        
+        if entry:
+            await db.leaderboard.update_one(
+                {'user_id': student_id, 'semester': semester},
+                {
+                    '$set': {
+                        'total_points': entry['total_points'] + POINTS_CONFIG['event_participation'],
+                        'events_attended': entry['events_attended'] + 1,
+                        'last_updated': datetime.now(timezone.utc).isoformat()
+                    },
+                    '$push': {'point_history': activity}
+                }
+            )
+        else:
+            new_entry = {
+                'id': str(uuid.uuid4()),
+                'user_id': student_id,
+                'user_name': student['name'],
+                'department': student.get('department', ''),
+                'section': student.get('section'),
+                'semester': semester,
+                'total_points': POINTS_CONFIG['event_participation'],
+                'tasks_completed': 0,
+                'tasks_on_time': 0,
+                'tasks_late': 0,
+                'tasks_missed': 0,
+                'events_attended': 1,
+                'task_completion_rate': 0.0,
+                'rank': 0,
+                'rank_change': 0,
+                'last_updated': datetime.now(timezone.utc).isoformat(),
+                'point_history': [activity]
+            }
+            await db.leaderboard.insert_one(new_entry)
+    
+    # Recalculate ranks
+    await recalculate_department_ranks(user.get('department', ''), semester)
+    
+    return {'message': f'Attendance marked for {len(student_ids)} students'}
+
+@api_router.get("/leaderboard", response_model=List[LeaderboardEntry])
+async def get_leaderboard(
+    department: Optional[str] = None,
+    section: Optional[str] = None,
+    semester: Optional[str] = None,
+    limit: int = 10,
+    user: dict = Depends(get_current_user)
+):
+    """Get leaderboard filtered by department, section, semester"""
+    # Use current semester if not specified
+    if not semester:
+        semester = get_current_semester()
+    
+    # Use user's department if not specified
+    if not department:
+        department = user.get('department', '')
+    
+    # Build query
+    query = {'semester': semester}
+    if department:
+        query['department'] = department
+    if section:
+        query['section'] = section
+    
+    # Get leaderboard entries sorted by rank
+    entries = await db.leaderboard.find(query, {'_id': 0}).sort('rank', 1).limit(limit).to_list(limit)
+    
+    return entries
+
+@api_router.get("/leaderboard/my-stats", response_model=LeaderboardStats)
+async def get_my_leaderboard_stats(
+    semester: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get current user's leaderboard statistics"""
+    if not semester:
+        semester = get_current_semester()
+    
+    entry = await db.leaderboard.find_one(
+        {'user_id': user['id'], 'semester': semester},
+        {'_id': 0}
+    )
+    
+    if not entry:
+        # Return default stats if no entry exists
+        return LeaderboardStats(
+            user_id=user['id'],
+            user_name=user['name'],
+            rank=0,
+            total_points=0,
+            tasks_completed=0,
+            events_attended=0,
+            task_completion_rate=0.0,
+            recent_activities=[]
+        )
+    
+    # Get recent activities (last 10)
+    recent_activities = entry.get('point_history', [])[-10:]
+    
+    return LeaderboardStats(
+        user_id=entry['user_id'],
+        user_name=entry['user_name'],
+        rank=entry['rank'],
+        total_points=entry['total_points'],
+        tasks_completed=entry['tasks_completed'],
+        events_attended=entry['events_attended'],
+        task_completion_rate=entry['task_completion_rate'],
+        recent_activities=recent_activities
+    )
+
+@api_router.get("/leaderboard/top-performers")
+async def get_top_performers(
+    department: Optional[str] = None,
+    semester: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Get top 10 performers"""
+    if not semester:
+        semester = get_current_semester()
+    
+    if not department:
+        department = user.get('department', '')
+    
+    query = {'semester': semester}
+    if department:
+        query['department'] = department
+    
+    top_10 = await db.leaderboard.find(query, {'_id': 0}).sort('rank', 1).limit(10).to_list(10)
+    
+    return top_10
+
+
 # Include router
 app.include_router(api_router)
 
