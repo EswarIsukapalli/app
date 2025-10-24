@@ -267,6 +267,11 @@ async def send_email(to_email: str, subject: str, body: str):
     except Exception as e:
         logging.error(f"Failed to send email to {to_email}: {str(e)}")
 
+def generate_invite_code(length: int = 8) -> str:
+    """Generate a random invite code"""
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(characters) for _ in range(length))
+
 # Routes
 @api_router.post("/auth/signup", response_model=UserResponse)
 async def signup(user_data: UserCreate):
