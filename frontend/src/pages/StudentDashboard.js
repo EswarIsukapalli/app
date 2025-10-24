@@ -124,6 +124,8 @@ const StudentDashboard = ({ user, onLogout }) => {
         <Routes>
           <Route path="/" element={<WorkspaceJoinTab />} />
           <Route path="/tasks" element={<WorkspaceTasksTab />} />
+          <Route path="/updates" element={<DepartmentFeedTab user={user} />} />
+          <Route path="/leaderboard" element={<StudentLeaderboardTab user={user} />} />
           <Route
             path="/materials"
             element={
