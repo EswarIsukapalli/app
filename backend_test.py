@@ -61,10 +61,11 @@ class DigitalWorkspaceTester:
 
     def test_admin_signup(self):
         """Test admin user signup"""
+        timestamp = datetime.now().strftime('%H%M%S%f')
         admin_data = {
-            "email": f"admin_{datetime.now().strftime('%H%M%S')}@test.com",
-            "password": "AdminPass123!",
-            "name": "Test Admin",
+            "email": f"teacher_{timestamp}@digitalworkspace.edu",
+            "password": "TeacherPass123!",
+            "name": "Professor Sarah Johnson",
             "role": "admin"
         }
         
@@ -81,10 +82,11 @@ class DigitalWorkspaceTester:
 
     def test_student_signup(self):
         """Test student user signup"""
+        timestamp = datetime.now().strftime('%H%M%S%f')
         student_data = {
-            "email": f"student_{datetime.now().strftime('%H%M%S')}@test.com",
+            "email": f"student_{timestamp}@digitalworkspace.edu",
             "password": "StudentPass123!",
-            "name": "Test Student",
+            "name": "Alex Martinez",
             "role": "student"
         }
         
