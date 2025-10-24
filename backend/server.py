@@ -206,6 +206,83 @@ class TaskSubmissionReport(BaseModel):
     rejected_count: int
     pending_count: int
 
+# Department Updates Models
+class DepartmentUpdateCreate(BaseModel):
+    title: str
+    description: str
+    category: str  # 'Workshop', 'Sports', 'Club', 'Announcement', 'General'
+    attachments: Optional[List[str]] = []  # URLs or file paths
+    visible_to_sections: Optional[List[str]] = []  # ['A', 'B', 'C'] or empty for all
+    event_date: Optional[str] = None  # ISO format date for events
+
+class DepartmentUpdate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    title: str
+    description: str
+    category: str
+    department: str
+    attachments: List[str]
+    visible_to_sections: List[str]
+    event_date: Optional[str] = None
+    created_by: str
+    created_by_name: str
+    created_at: str
+    interested_users: List[str] = []
+    attending_users: List[str] = []
+
+class DepartmentUpdateWithInterest(DepartmentUpdate):
+    is_interested: bool = False
+    is_attending: bool = False
+    interested_count: int = 0
+    attending_count: int = 0
+
+# Leaderboard Models
+class PointActivity(BaseModel):
+    activity_type: str  # 'task_submission', 'event_participation', 'event_winning'
+    points: int
+    description: str
+    timestamp: str
+    related_id: Optional[str] = None  # task_id or event_id
+
+class LeaderboardEntry(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    user_id: str
+    user_name: str
+    department: str
+    section: Optional[str] = None
+    semester: str  # e.g., "2025-1" for Jan-May 2025
+    total_points: int
+    tasks_completed: int
+    tasks_on_time: int
+    tasks_late: int
+    tasks_missed: int
+    events_attended: int
+    task_completion_rate: float
+    rank: int
+    rank_change: int  # positive for up, negative for down
+    last_updated: str
+
+class LeaderboardStats(BaseModel):
+    user_id: str
+    user_name: str
+    rank: int
+    total_points: int
+    tasks_completed: int
+    events_attended: int
+    task_completion_rate: float
+    recent_activities: List[PointActivity]
+
+# Points Configuration (hardcoded as per requirements)
+POINTS_CONFIG = {
+    'task_on_time': 10,
+    'task_late': -5,
+    'task_missed': -10,
+    'event_participation': 20,
+    'event_winning': 30
+}
+
 # Helper Functions
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
