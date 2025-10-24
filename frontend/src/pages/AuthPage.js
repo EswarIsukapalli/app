@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { BookOpen, GraduationCap, UserCheck } from 'lucide-react';
+import { BookOpen, GraduationCap, UserCheck, Building2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -18,7 +18,9 @@ const AuthPage = ({ onLogin }) => {
     email: '',
     password: '',
     name: '',
-    role: 'student'
+    role: 'student',
+    department: '',
+    section: ''
   });
   const [loading, setLoading] = useState(false);
 
