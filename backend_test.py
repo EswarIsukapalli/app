@@ -4,8 +4,9 @@ import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+import io
 
-class LMSAPITester:
+class DigitalWorkspaceTester:
     def __init__(self, base_url="https://submispot.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
@@ -15,8 +16,11 @@ class LMSAPITester:
         self.student_user = None
         self.tests_run = 0
         self.tests_passed = 0
-        self.created_material_id = None
+        # New workspace-related variables
+        self.created_workspace_id = None
+        self.workspace_invite_code = None
         self.created_task_id = None
+        self.submission_id = None
 
     def log_test(self, name, success, details=""):
         """Log test results"""
