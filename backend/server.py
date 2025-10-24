@@ -118,6 +118,92 @@ class TaskCompletionStatus(BaseModel):
     total_students: int
     completed_count: int
 
+# New Workspace Models
+class WorkspaceBase(BaseModel):
+    name: str
+    description: str
+    subject: Optional[str] = None
+
+class WorkspaceCreate(WorkspaceBase):
+    pass
+
+class Workspace(WorkspaceBase):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    invite_code: str
+    created_by: str
+    created_at: str
+    member_count: Optional[int] = 0
+
+class WorkspaceJoin(BaseModel):
+    invite_code: str
+
+class WorkspaceMember(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    workspace_id: str
+    student_id: str
+    student_name: str
+    joined_at: str
+
+# Enhanced Task Models
+class TaskCreateWorkspace(BaseModel):
+    workspace_id: str
+    title: str
+    description: str
+    deadline: str
+    submission_type: str  # 'image', 'file', 'link', 'any'
+
+class TaskWorkspace(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    workspace_id: str
+    title: str
+    description: str
+    deadline: str
+    submission_type: str
+    created_by: str
+    created_at: str
+
+class TaskWithSubmission(TaskWorkspace):
+    submission_status: Optional[str] = "not_submitted"  # not_submitted, pending, approved, rejected
+    submission_id: Optional[str] = None
+    submitted_at: Optional[str] = None
+
+# Submission Models
+class SubmissionCreate(BaseModel):
+    task_id: str
+    submission_type: str  # 'file' or 'link'
+    link: Optional[str] = None
+
+class Submission(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    task_id: str
+    workspace_id: str
+    student_id: str
+    student_name: str
+    submission_type: str  # 'file' or 'link'
+    file_path: Optional[str] = None
+    link: Optional[str] = None
+    status: str  # 'pending', 'approved', 'rejected'
+    submitted_at: str
+    reviewed_at: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    review_comment: Optional[str] = None
+
+class SubmissionReview(BaseModel):
+    status: str  # 'approved' or 'rejected'
+    comment: Optional[str] = None
+
+class TaskSubmissionReport(BaseModel):
+    task: TaskWorkspace
+    submissions: List[Submission]
+    total_students: int
+    submitted_count: int
+    approved_count: int
+    rejected_count: int
+    pending_count: int
+
 # Helper Functions
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
