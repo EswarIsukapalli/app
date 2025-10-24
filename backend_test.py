@@ -635,6 +635,46 @@ class DigitalWorkspaceTester:
             self.log_test("Permission Restrictions (Student Create Workspace)", False, f"Expected 403, got {status}")
             return False
 
+    def test_resubmission_after_rejection(self):
+        """Test resubmission workflow after rejection"""
+        if not self.submission_id:
+            self.log_test("Resubmission After Rejection", False, "No submission ID available")
+            return False
+            
+        # First reject the current submission
+        review_data = {
+            "status": "rejected",
+            "comment": "Please fix the code formatting and add more comments."
+        }
+        
+        success, response, status = self.make_request(
+            'POST', f'submissions/{self.submission_id}/review', 
+            review_data, token=self.admin_token, expected_status=200
+        )
+        
+        if not success:
+            self.log_test("Resubmission After Rejection", False, f"Failed to reject submission: {status}")
+            return False
+            
+        # Now student resubmits with a new file
+        test_content = b"# Improved Calculator with better formatting\ndef add(a, b):\n    return a + b"
+        test_file = io.BytesIO(test_content)
+        
+        files = {'file': ('calculator_v2.py', test_file, 'text/plain')}
+        data = {}
+        
+        success, response, status = self.make_request(
+            'POST', f'tasks/{self.created_task_id}/submit', 
+            data=data, files=files, token=self.student_token, expected_status=200
+        )
+        
+        if success and 'id' in response and response.get('status') == 'pending':
+            self.log_test("Resubmission After Rejection", True)
+            return True
+        else:
+            self.log_test("Resubmission After Rejection", False, f"Status: {status}, Response: {response}")
+            return False
+
     def cleanup(self):
         """Clean up created resources"""
         if self.created_material_id and self.admin_token:
