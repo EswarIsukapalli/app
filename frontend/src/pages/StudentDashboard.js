@@ -118,8 +118,10 @@ const StudentDashboard = ({ user, onLogout }) => {
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
+          <Route path="/" element={<WorkspaceJoinTab />} />
+          <Route path="/tasks" element={<WorkspaceTasksTab />} />
           <Route
-            path="/"
+            path="/materials"
             element={
               <div data-testid="materials-section">
                 <div className="mb-6">
@@ -170,81 +172,6 @@ const StudentDashboard = ({ user, onLogout }) => {
                         </CardContent>
                       </Card>
                     ))}
-                  </div>
-                )}
-              </div>
-            }
-          />
-          <Route
-            path="/tasks"
-            element={
-              <div data-testid="tasks-section">
-                <div className="mb-6">
-                  <h2 className="text-3xl font-bold text-gray-900">Assignments</h2>
-                  <p className="text-gray-600 mt-1">Track and complete your assignments</p>
-                </div>
-
-                {loading ? (
-                  <div className="text-center py-12">
-                    <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                  </div>
-                ) : tasks.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <ClipboardList className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">No assignments available yet</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {tasks.map((task) => {
-                      const deadline = new Date(task.deadline);
-                      const isPastDeadline = deadline < new Date();
-                      
-                      return (
-                        <Card key={task.id} className="card-hover" data-testid={`task-${task.id}`}>
-                          <CardHeader>
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="p-0 h-auto"
-                                    onClick={() => toggleTaskCompletion(task.id, task.completed)}
-                                    data-testid={`toggle-task-${task.id}`}
-                                  >
-                                    {task.completed ? (
-                                      <CheckCircle2 className="w-6 h-6 text-teal-600" />
-                                    ) : (
-                                      <Circle className="w-6 h-6 text-gray-400" />
-                                    )}
-                                  </Button>
-                                  <CardTitle className={task.completed ? 'line-through text-gray-500' : ''}>
-                                    {task.title}
-                                  </CardTitle>
-                                </div>
-                                <CardDescription>{task.description}</CardDescription>
-                              </div>
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-4 h-4 text-gray-500" />
-                              <span className={isPastDeadline && !task.completed ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                Deadline: {format(deadline, 'PPP')}
-                              </span>
-                              {isPastDeadline && !task.completed && (
-                                <Badge variant="destructive">Overdue</Badge>
-                              )}
-                              {task.completed && (
-                                <Badge className="bg-teal-100 text-teal-700">Completed</Badge>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
                   </div>
                 )}
               </div>
