@@ -295,6 +295,8 @@ async def signup(user_data: UserCreate):
         'email': user_data.email,
         'name': user_data.name,
         'role': user_data.role,
+        'department': user_data.department,
+        'section': user_data.section,
         'password': hash_password(user_data.password),
         'created_at': datetime.now(timezone.utc).isoformat()
     }
@@ -302,7 +304,7 @@ async def signup(user_data: UserCreate):
     await db.users.insert_one(user_dict)
     
     # Create token
-    token = create_token(user_id, user_data.email, user_data.role)
+    token = create_token(user_id, user_data.email, user_data.role, user_data.department)
     
     # Return user without password
     user_dict.pop('password')
