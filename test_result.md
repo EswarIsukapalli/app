@@ -152,6 +152,42 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ Submission system fully functional. Tested: file upload submission, link submission, task submissions report with counts, submission review (approve/reject), get my submissions, resubmission after rejection workflow. All APIs working correctly with proper permission controls."
+  
+  - task: "User Authentication Enhancement with Department Support"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced User model with department and section fields. Added 'department_admin' role. Updated signup/login APIs to handle department info. Updated JWT token to include department. Added get_department_admin_user() authorization function."
+  
+  - task: "Department Updates System APIs"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created DepartmentUpdate models and complete CRUD APIs: create update (department_admin only), get updates filtered by department and section, mark interest/attendance, get upcoming events calendar view, delete update. Includes category filtering (Workshop/Sports/Club/Announcement/General) and section-based visibility."
+  
+  - task: "Leaderboard System with Auto Point Calculation"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented comprehensive leaderboard system: LeaderboardEntry model with point tracking, automatic point calculation on task submission (on-time: +10, late: -5), semester-based tracking, department-wise ranking with automatic rank recalculation. APIs: get leaderboard with filters, get my stats, get top performers, mark event attendance. Integrated point calculation into task submission workflow."
 
 frontend:
   - task: "Workspace Management UI for Teachers"
