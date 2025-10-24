@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import AuthPage from '@/pages/AuthPage';
 import AdminDashboard from '@/pages/AdminDashboard';
 import StudentDashboard from '@/pages/StudentDashboard';
+import DepartmentAdminDashboard from '@/pages/DepartmentAdminDashboard';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
