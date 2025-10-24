@@ -79,6 +79,8 @@ function App() {
               user ? (
                 user.role === 'admin' ? (
                   <Navigate to="/admin" replace />
+                ) : user.role === 'department_admin' ? (
+                  <Navigate to="/department-admin" replace />
                 ) : (
                   <Navigate to="/student" replace />
                 )
@@ -96,6 +98,16 @@ function App() {
             element={
               user && user.role === 'admin' ? (
                 <AdminDashboard user={user} onLogout={handleLogout} />
+              ) : (
+                <Navigate to="/auth" replace />
+              )
+            }
+          />
+          <Route
+            path="/department-admin/*"
+            element={
+              user && user.role === 'department_admin' ? (
+                <DepartmentAdminDashboard user={user} onLogout={handleLogout} />
               ) : (
                 <Navigate to="/auth" replace />
               )
