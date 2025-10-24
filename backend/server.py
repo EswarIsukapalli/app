@@ -58,7 +58,9 @@ security = HTTPBearer()
 class UserBase(BaseModel):
     email: EmailStr
     name: str
-    role: str  # 'admin' or 'student'
+    role: str  # 'admin', 'student', or 'department_admin'
+    department: Optional[str] = None  # Department name (e.g., "Computer Science", "MCA")
+    section: Optional[str] = None  # Section (A, B, C, etc.) - optional for students
 
 class UserCreate(UserBase):
     password: str
