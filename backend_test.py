@@ -701,7 +701,7 @@ class DigitalWorkspaceTester:
             return False
 
 def main():
-    tester = LMSAPITester()
+    tester = DigitalWorkspaceTester()
     success = tester.run_all_tests()
     return 0 if success else 1
 
