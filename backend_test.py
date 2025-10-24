@@ -495,19 +495,26 @@ class DigitalWorkspaceTester:
             self.log_test("Submit Task with Link", False, "No task ID available")
             return False
             
-        # Test resubmission with link
+        # Test resubmission with link - need to use Form data format
+        url = f"{self.api_url}/tasks/{self.created_task_id}/submit"
+        headers = {'Authorization': f'Bearer {self.student_token}'}
+        
+        # Use form data instead of JSON for this endpoint
         data = {'link': 'https://github.com/student/calculator-project'}
         
-        success, response, status = self.make_request(
-            'POST', f'tasks/{self.created_task_id}/submit', 
-            data=data, token=self.student_token, expected_status=200
-        )
-        
-        if success and 'id' in response and response.get('submission_type') == 'link':
-            self.log_test("Submit Task with Link", True)
-            return True
-        else:
-            self.log_test("Submit Task with Link", False, f"Status: {status}, Response: {response}")
+        try:
+            response = requests.post(url, data=data, headers=headers)
+            success = response.status_code == 200
+            response_data = response.json() if response.content else {}
+            
+            if success and 'id' in response_data and response_data.get('submission_type') == 'link':
+                self.log_test("Submit Task with Link", True)
+                return True
+            else:
+                self.log_test("Submit Task with Link", False, f"Status: {response.status_code}, Response: {response_data}")
+                return False
+        except Exception as e:
+            self.log_test("Submit Task with Link", False, f"Exception: {str(e)}")
             return False
 
     def test_get_task_submissions_report(self):
