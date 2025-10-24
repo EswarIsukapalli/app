@@ -7,7 +7,7 @@ from pathlib import Path
 import io
 
 class DigitalWorkspaceTester:
-    def __init__(self, base_url="https://submispot.preview.emergentagent.com"):
+    def __init__(self, base_url="https://taskrover-2.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None
