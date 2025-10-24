@@ -4,11 +4,12 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LayoutDashboard, BookOpen, ClipboardList, LogOut, Upload, Plus, Trash2, Users, CheckCircle2, XCircle, FolderOpen } from 'lucide-react';
+import { LayoutDashboard, BookOpen, ClipboardList, LogOut, Upload, Plus, Trash2, Users, CheckCircle2, XCircle, FolderOpen, FileCheck } from 'lucide-react';
 import MaterialsTab from '@/components/admin/MaterialsTab';
 import TasksTab from '@/components/admin/TasksTab';
 import OverviewTab from '@/components/admin/OverviewTab';
 import WorkspacesTab from '@/components/admin/WorkspacesTab';
+import WorkspaceTasksTab from '@/components/admin/WorkspaceTasksTab';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -20,8 +21,8 @@ const AdminDashboard = ({ user, onLogout }) => {
   const navItems = [
     { path: '/admin', label: 'Overview', icon: LayoutDashboard },
     { path: '/admin/workspaces', label: 'Workspaces', icon: FolderOpen },
+    { path: '/admin/workspace-tasks', label: 'Tasks & Submissions', icon: FileCheck },
     { path: '/admin/materials', label: 'Materials', icon: BookOpen },
-    { path: '/admin/tasks', label: 'Assignments', icon: ClipboardList }
   ];
 
   return (
