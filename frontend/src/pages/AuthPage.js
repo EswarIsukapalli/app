@@ -154,25 +154,57 @@ const AuthPage = ({ onLogin }) => {
                       required
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-department">Department</Label>
+                    <Input
+                      id="signup-department"
+                      data-testid="signup-department"
+                      type="text"
+                      placeholder="e.g., Computer Science, MCA"
+                      value={signupData.department}
+                      onChange={(e) => setSignupData({ ...signupData, department: e.target.value })}
+                      required
+                    />
+                  </div>
+                  {signupData.role === 'student' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-section">Section (Optional)</Label>
+                      <Input
+                        id="signup-section"
+                        data-testid="signup-section"
+                        type="text"
+                        placeholder="e.g., A, B, C"
+                        value={signupData.section}
+                        onChange={(e) => setSignupData({ ...signupData, section: e.target.value })}
+                      />
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <Label>Account Type</Label>
                     <RadioGroup
                       value={signupData.role}
                       onValueChange={(value) => setSignupData({ ...signupData, role: value })}
-                      className="flex gap-4"
+                      className="flex flex-col gap-3"
                     >
-                      <div className="flex items-center space-x-2 flex-1">
+                      <div className="flex items-center space-x-2">
                         <RadioGroupItem value="student" id="student" data-testid="role-student" />
                         <Label htmlFor="student" className="flex items-center gap-2 cursor-pointer">
                           <GraduationCap className="w-4 h-4" />
                           Student
                         </Label>
                       </div>
-                      <div className="flex items-center space-x-2 flex-1">
+                      <div className="flex items-center space-x-2">
                         <RadioGroupItem value="admin" id="admin" data-testid="role-admin" />
                         <Label htmlFor="admin" className="flex items-center gap-2 cursor-pointer">
                           <UserCheck className="w-4 h-4" />
-                          Admin
+                          Teacher / Admin
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="department_admin" id="department_admin" data-testid="role-department-admin" />
+                        <Label htmlFor="department_admin" className="flex items-center gap-2 cursor-pointer">
+                          <Building2 className="w-4 h-4" />
+                          Department Admin
                         </Label>
                       </div>
                     </RadioGroup>
