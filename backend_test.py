@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 class LMSAPITester:
-    def __init__(self, base_url="https://studytracker-82.preview.emergentagent.com"):
+    def __init__(self, base_url="https://submispot.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None
