@@ -83,6 +83,7 @@ const AdminDashboard = ({ user, onLogout }) => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Routes>
           <Route path="/" element={<OverviewTab />} />
+          <Route path="/workspaces" element={<WorkspacesTab />} />
           <Route path="/materials" element={<MaterialsTab />} />
           <Route path="/tasks" element={<TasksTab />} />
         </Routes>
