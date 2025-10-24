@@ -734,6 +734,10 @@ class DigitalWorkspaceTester:
         print("\n🔒 Security & Validation Tests")
         self.test_permission_restrictions()
         self.test_unauthorized_access()
+        
+        # Workflow tests
+        print("\n🔄 Workflow Tests")
+        self.test_resubmission_after_rejection()
         # Note: File size limit test disabled as it may cause memory issues in container
         # self.test_file_size_limit()
         
